@@ -37,12 +37,6 @@ uint8_t glo_fix_type = 1;  //GPS status
 
 // TODO: Modify gps parser functions
 char NMEA_PREFIX[][8] = {
-#if 0
-		"$GPGGA",
-		"$GPGSA",
-		"$GPRMC",
-		"$GPGSV"
-#else
 		"$GNGGA",
 		"$GPGGA",
 		"$GNGSA",
@@ -52,18 +46,11 @@ char NMEA_PREFIX[][8] = {
 		"$GPGSV",
 		"$GLGSV",
 		"$GNGLL"
-#endif
 };
 
 typedef bool (*FP_CHAR)(char*);
 // TODO: Add dummy gps parser functions
 FP_CHAR fp_GPS[] = {
-#if 0
-		HLGPS_ParseGGA,
-		HLGPS_ParseGSA,
-		HLGPS_ParseRMC,
-		HLGPS_ParseGSV
-#else
 		HLGPS_ParseGGA,
 		HLGPS_ParseGGA,
 		HLGPS_ParseGSA,
@@ -73,7 +60,6 @@ FP_CHAR fp_GPS[] = {
 		HLGPS_ParseSkip, //HLGPS_ParseGSV,
 		HLGPS_ParseSkip, //HLGPS_ParseGSV,
 		HLGPS_ParseSkip  //HLGPS_ParseGLL
-#endif
 };
 
 typedef enum
@@ -113,10 +99,12 @@ void HLGPS_InitGPSGGA(void)
 	m_gga_data.hdop = 65535;
 }
 
+extern UART_HandleTypeDef huart4;
 void HLGPS_Init(void)
 {
     HLGPS_InitGPSGGA();
     HLGPS_InitGPSGSA();
+
 }
 
 int HLString_IndexOf(const char* str,const char token)
@@ -178,33 +166,38 @@ void HRString_CharSplit_For_GSA(const char *src,const char *ch)
 	int count = 0;
 	int field_index = 0;
 	int i, size;
-	return;
+	//return;
 
-	for( i=0;i<=(int)strlen(src);i++)
+	for(i=0; i<=(int)strlen(src); i++)
 	{
 		if(!strncmp(src+i,ch,1) || i == strlen(src))
 		{
+#if 1
+	    	memset(&gpsFields[field_index][0], 0, GPS_MAX_FIELD_LEN);
 			size = i - count;
-		    if( size > 0 )
+			if( size > 0 )
 		    {
-		    	//memset(&gpsFields[field_index][0], 0, GPS_MAX_FIELD_LEN);
 		    	if(size < GPS_MAX_FIELD_LEN )
-		    	{
-		    		//strncpy( &gpsFields[field_index][0], src+count, size);
-		    	}
+		    		strncpy(&gpsFields[field_index][0],src+count,(i-count));
 		    	else
-		    		while (1);
+		    		return;
+		    		//while (1);
 		    }
 
 		    field_index++;
 	    	if(field_index >= GPS_MAX_FIELDID_MAX)
-	    		while(1);
-
+	    		return;
+#endif
 		    count = i+1;
 		}
 	}
-	//printf("%s, %s\n", gpsFields[0],gpsFields[2]);
-	//printf("GSA\n");
+#if 1
+	printf("%s-%s--(%d)\r\n",
+			gpsFields[0], gpsFields[2], strlen(src));
+	//printf("gs=%s\r\n",src);
+#else
+	printf("GSA\r\n");
+#endif
 
 
 }
@@ -214,36 +207,43 @@ void HRString_CharSplit_For_GSA(const char *src,const char *ch)
 void HRString_CharSplit_For_GGA(const char *src,const char *ch)
 {
 	int count = 0;
-	int field_index = 0;
 	int i, size;
+	int field_index = 0;
 
-	return;
+	//return;
 
 	for(i=0; i<=(int)strlen(src); i++)
 	{
 		if(!strncmp(src+i,ch,1) || i == strlen(src))
 		{
-#if 0
+#if 1
+	    	memset(&gpsFields[field_index][0], 0, GPS_MAX_FIELD_LEN);
 			size = i - count;
-		    if( size > 0 )
+			if( size > 0 )
 		    {
-		    	memset(&gpsFields[field_index][0], 0, GPS_MAX_FIELD_LEN);
 		    	if(size < GPS_MAX_FIELD_LEN )
-		    		strncpy(gpsFields[field_index],src+count,(i-count));
+		    		strncpy(&gpsFields[field_index][0],src+count,(i-count));
 		    	else
-		    		while (1);
+		    		//while (1);
+		    		return;
 		    }
 
 		    field_index++;
 	    	if(field_index >= GPS_MAX_FIELDID_MAX)
-	    		while(1);
+	    		return;
 #endif
 		    count = i+1;
 		}
 	}
-	//printf("%s, %s, %s, %s, %s, %s\n",
-	//		gpsFields[0],gpsFields[2], gpsFields[3], gpsFields[4], gpsFields[5], gpsFields[8]);
-	//printf("GGA\n");
+#if 1
+	printf("%s-%s-%s-%s-%s-%s-%s-%s--(%d)\r\n",
+			gpsFields[0], gpsFields[2], gpsFields[3],
+			gpsFields[4], gpsFields[5], gpsFields[6],
+			gpsFields[7], gpsFields[8], strlen(src));
+	//printf("gs=%s\r\n",src);
+#else
+	printf("GGA\r\n");
+#endif
 
 }
 
@@ -344,61 +344,60 @@ void HLString_CharGetLeft(char *src,int ptr)
 	if(strSize <= 0 || ptr < 0 || ptr > strSize)
 		return;
 
-	char temp[128];
+	memset(src+ptr , 0, NMEA_MAX_SIZE-ptr);
 
-	memset(temp,0,strlen(temp));
-
-	strncpy(temp,src,ptr);
-	memset(src,0,strlen(src));
-	strncpy(src,temp,ptr);
 }
 
 bool HLGPS_VerifyChecksum(char *nmeaStr)
 {
-	char sentence[128] = "";
-	strcpy(sentence,nmeaStr);
+	unsigned char calculated_cksum = 0;
+	unsigned char received_cksum = 0;
+	char 	ch = '0';
+	char 	token = '*';
+	int 	size;
 
-	unsigned char calculated = 0;
-	unsigned char nmea = 0;
-	char ch = '0';
+	size = strlen(nmeaStr);
+	if( size > NMEA_MAX_SIZE)
+		return false;
 
-	char token = '*';
-	char *digit = strrchr(sentence,token);
-
+	char *digit = strrchr(nmeaStr, token);
 	if(digit == NULL)
 		return false;
 
-	calculated = 0;
-	for (int i = 0; i < (int)strlen(sentence); i++)
+	calculated_cksum = 0;
+	for (int i = 0; i < size; i++)
 	{
-		strncpy(&ch,sentence+i,1);
+		ch = (char) *(nmeaStr+i);
 		if(ch == '*')
 			break;
 
 		if(ch != '$')
 		{
-			calculated ^= ch;
+			calculated_cksum ^= ch;
 		}
 	}
 
 	if(ch != '*')
 		return false;
 
-	nmea = (unsigned char)strtol(digit+1,&digit+strlen(digit),16);
 
-	for(int i=0;i<(int)strlen(nmeaStr);i++)
+	received_cksum = (unsigned char) (strtol((digit+1), NULL, 16) & 0xff);
+	//return true;
+
+	for(int i=0;i<size;i++)
 	{
-		if(!strncmp(nmeaStr+i,&token,1))
+		if(*(nmeaStr+i) == token )
 		{
 			HLString_CharGetLeft(nmeaStr,i);
 			break;
 		}
 	}
-	if(nmea == calculated)
+	if(received_cksum == calculated_cksum)
 		return true;
 	else
 		return false;
 }
+
 
 // TODO: for GPS uart debug
 #define DBG_REQUEST_SIZE 200
@@ -443,16 +442,13 @@ void HLGPS_StartToParseNMEA(void)
     memset(gps_sentence,0,sizeof(gps_sentence));
 
     //Copy GPS raw data
-    memcpy(gps_data_temp,m_pGPS,m_GPSSize);
+    memcpy(gps_data_temp, m_pGPS, m_GPSSize);
 
-    // FIXME debug code for confirm the data correctness of gps received data
 #if 1
 	test_gCount++;
 	test_zero_times = 0;
 
-	//printf("%4d|%4d\n", test_gCount, m_GPSSize);
-	//printf("%4d\n", test_gCount);
-	if(test_gCount==DBG_BUF_SIZE*1000)
+	if(test_gCount==DBG_BUF_SIZE*1000*100)
 		while(1);
 
 	// Just return for verification
@@ -469,6 +465,7 @@ void HLGPS_StartToParseNMEA(void)
     //I try to combine NMEA sentence as completely sentence if I have fragment sentence before
     if(strlen(m_fragment))
     {
+    	//printf("--> frmgt size=%d\r\n", strlen(m_fragment));
     	strcpy(gps_sentence,m_fragment);
     	ptr = gps_sentence + strlen(gps_sentence);
     }
@@ -487,9 +484,13 @@ void HLGPS_StartToParseNMEA(void)
     		if(*(--ptr - 1) == '\r')
     			ptr--;
     		*ptr = '\0';
-
-    		if(HLGPS_VerifyChecksum(gps_sentence))
-    		{
+    		//printf("gs=%d\r\n", strlen(gps_sentence));
+#if 1
+    		if(!HLGPS_VerifyChecksum(gps_sentence))
+	    			err_count++;
+	    	else
+#endif
+	    	{
     			for(int index = 0;index < prefix_size; index++)
     			{
     				// TODO: Check the GPS TAG comparison
@@ -501,8 +502,6 @@ void HLGPS_StartToParseNMEA(void)
     				}
     			}
     		}
-    		else
-    			err_count++;
 
     		//Clear string buffer
     		memset(m_fragment,0,sizeof(m_fragment));
@@ -595,46 +594,18 @@ void HLGPS_GetDataFromDriver(void)
 {
 	m_pGPS = Read_GPS_To_GPSBuffer(&m_GPSSize);
 
-	// FIXME: Check point of UART4 RX interface
+	// TODO: Check point of UART4 RX interface
 	{
-		static int i = 0;
+		static int32_t i = 0;
 
 		if( m_GPSSize!=0 )
 		{
-			printf("%4d |%4d ", i, m_GPSSize);
-			printf("a\n");
-			if( ++i > 3000 ) i = 0;
+			printf("%4d |%4d\r\n", i, m_GPSSize);
+			//printf("a\n");
+			if( ++i > 300000 ) i = 0;
 		}
 
 	}
-
-#if 0
-	if(m_GPSSize==0)
-	{
-		test_zero_times++;
-		if(test_zero_times > 1000)
-			while (1);
-		return;
-	}
-		temp_current_pos = (uint8_t*)(&temp_buf[0])+total_bytes;
-
-		strncpy(temp_current_pos, m_pGPS, m_GPSSize);
-
-		test_info[test_gCount][0] = m_GPSSize;
-		test_info[test_gCount][2] = (uint32_t) (temp_current_pos);
-
-		total_bytes += bytes_received;
-		test_info[test_gCount][1] = total_bytes;
-		test_info[test_gCount][3] = (uint32_t) (temp_current_pos+m_GPSSize);
-		test_info[test_gCount][4] = test_zero_times;
-		test_info[test_gCount][5] = m_pGPS;
-
-		test_gCount++;
-		test_zero_times = 0;
-
-		if(test_gCount==DBG_BUF_SIZE)
-			while(1);
-#endif
 
 	return;
 }
