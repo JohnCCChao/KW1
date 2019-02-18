@@ -190,7 +190,8 @@ int main(void)
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   //For GPS parser task
-  osThreadDef(GPSTask, StartGPSTask, osPriorityHigh, 0, 128);
+  // FIXME: Edmund, GPS stack size
+  osThreadDef(GPSTask, StartGPSTask, osPriorityHigh, 0, 128+configEXTRA_GPS_STAXK_SIZE/4);
   GPSTaskHandle = osThreadCreate(osThread(GPSTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -540,11 +541,16 @@ void StartGPSTask(void const * argument)
   HLGPS_Init();
   for(;;)
   {
+  	// FIXME: GPS entry point
 	HLGPS_GetDataFromDriver();
 	HLGPS_StartToParseNMEA();
-    osDelay(100);
+    osDelay(200);
   }
   /* USER CODE END 5 */ 
+}
+void vApplicationStackOverflowHook( TaskHandle_t *pxTask, signed char *pcTaskName )
+{
+	return;
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
