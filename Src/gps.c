@@ -100,11 +100,64 @@ void HLGPS_InitGPSGGA(void)
 }
 
 extern UART_HandleTypeDef huart4;
+extern UART_HandleTypeDef huart3;
+void HLGPS_ubx_2_checksum(uint8_t *ck_a, uint8_t *ck_b, uint8_t* inString, uint16_t len)
+{
+	uint16_t strLen = len;
+	uint16_t i = 0;
+
+	*ck_a = 0;
+	*ck_b = 0;
+	while(strLen--)
+	{
+		*ck_a = ( *ck_a + *(inString+i)) & 0xff;
+		*ck_b = ( *ck_b + *(ck_a)) & 0xff;
+		i++;
+	}
+	*(inString+len) = *ck_a;
+	*(inString+len+1) = *ck_b;
+
+}
+
+// UBX-CFG-RATE
+void HLGPS_SendUbxCmd(uint16_t measInterval)
+{
+   	HAL_StatusTypeDef status;
+   	uint8_t ck_a, ck_b;
+   	// UBX-CFG-PRT
+   	unsigned char cmd1[]={
+    // UBX-CFG-RATE - 10 sec update once
+    // b5 62 06 08 06 00 10 27 01 00 01 00  4d dd
+    			0xb5, 		// [00] SYNC1
+				0x62, 		// [01] SYNC2
+    			0x06, 		// [02] class
+				0x08, 		// [03] id
+				0x06, 		// [04] len1
+				0x00, 		// [05] len2
+				0x10, 		// [06] measRate1
+				0x27, 		// [07] measRate2
+    			0x01,		// [08] navRate1
+				0x00,		// [09] navRate2
+				0x01,		// [10] timeRef
+				0x00,		// [11] timeref
+				0x4d,		// [12] CK_A
+				0xdd		// [13] CK_B
+   	};
+
+   	cmd1[6] = (uint8_t) measInterval & 0xff;
+   	cmd1[7] = (uint8_t) (measInterval>>8) & 0xff;
+
+   	HLGPS_ubx_2_checksum(&ck_a, &ck_b, &cmd1[2], 10);
+   	status = HAL_UART_Transmit(&huart4, (char*)cmd1, 14, 0xFF);
+
+}
+
 void HLGPS_Init(void)
 {
     HLGPS_InitGPSGGA();
     HLGPS_InitGPSGSA();
-
+    // Set 20 sec as measurement interval
+    HLGPS_SendUbxCmd(20*1000);
 }
 
 int HLString_IndexOf(const char* str,const char token)

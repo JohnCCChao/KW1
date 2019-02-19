@@ -70,12 +70,12 @@ uint8_t NBIOT_AT_Command_Send(const char *at_cmd,const char *at_respond,int time
 	}
 	else
 	{
-		printf("%s\r\n",nbiot_buffer);
+		//printf("%s\r\n",nbiot_buffer);
 		printf("No ACK - %d\r\n",timeout);
 		return_status = 0;
 	}
 	HAL_UART_AbortReceive_IT(&huart1);
-	//memset(nbiot_buffer,'3',1024);
+	memset(nbiot_buffer,'3',1024);
 	HAL_UART_Receive_IT(&huart1,nbiot_buffer,1024);
 	return return_status;
 }

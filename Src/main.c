@@ -182,10 +182,11 @@ int main(void)
   printf("Debug message test!!\r\n");
   /* Create the thread(s) */
 
-  //For GPS parser task
-   osThreadDef(NBIOTTask, StartNBIOTTask, osPriorityNormal, 0,1024);
-   NBIOTTaskHandle = osThreadCreate(osThread(NBIOTTask), NULL);
-  /* definition and creation of defaultTask */
+  //For NBIOT parser task
+  osThreadDef(NBIOTTask, StartNBIOTTask, osPriorityNormal, 0,1024);
+  NBIOTTaskHandle = osThreadCreate(osThread(NBIOTTask), NULL);
+
+   /* definition and creation of defaultTask */
   osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
